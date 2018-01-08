@@ -33,9 +33,17 @@ if [ "$?" != "0" ]; then
     exit 1;
 fi
 
-msg "Copying files to ESP"
+ESP=$(fdisk -l $1 2>/dev/null | grep "EFI System" | awk '{print $1}')
+if [ -z ${ESP} ]; then
+    msg "No EFI System Partition on disk $1"
+    exit 1
+fi
+
+msg "Copying files to ESP at ${ESP}"
+
 mkdir -p /boot/efi
-mount ${1} /boot/efi 2> /dev/null
+
+mount ${ESP} /boot/efi 2> /dev/null
 if [ "$?" != "0" ]; then
     msg "Couldn't mount ${1}, already mounted?"
     exit 1;
@@ -55,7 +63,31 @@ cp -f /usr/share/xenclient/bootloader/xen.cfg
 
 umount /boot/efi
 
-efibootmgr -w -L OpenXT -l "\EFI\openxt\shimx64.efi" -c
+efibootmgr -w -L "OpenXT" -l "\EFI\openxt\shimx64.efi" -c -d ${1} --part 1 -e 3
+if [ "$?" != "0" ]; then
+    msg "Couldn't create EFI boot entry"
+    exit 1;
+fi
+
+efibootmgr -w -L "OpenXT (safe graphics)" -l "\EFI\openxt\shimx64.efi" -C -d ${1} --part 1 -e -u "openxt-support-safe-graphics"
+if [ "$?" != "0" ]; then
+    msg "Couldn't create EFI boot entry"
+    exit 1;
+fi
+
+efibootmgr -w -L "OpenXT (AMT)" -l "\EFI\openxt\shimx64.efi" -C -d ${1} --part 1 -e -u "openxt-support-amt"
+if [ "$?" != "0" ]; then
+    msg "Couldn't create EFI boot entry"
+    exit 1;
+fi
+
+efibootmgr -w -L "OpenXT (console)" -l "\EFI\openxt\shimx64.efi" -C -d ${1} --part 1 -e -u "openxt-support-console"
+if [ "$?" != "0" ]; then
+    msg "Couldn't create EFI boot entry"
+    exit 1;
+fi
+
+efibootmgr -w -L "OpenXT (console AMT)" -l "\EFI\openxt\shimx64.efi" -C -d ${1} --part 1 -e -u "openxt-support-console-amt"
 if [ "$?" != "0" ]; then
     msg "Couldn't create EFI boot entry"
     exit 1;
